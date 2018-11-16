@@ -13,20 +13,19 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Toast;
 
 import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
-import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.StringRequest;
-import com.android.volley.toolbox.Volley;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
 
@@ -35,13 +34,30 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     private List<Contact> contactList = new ArrayList<>();
 
     private SwipeRefreshLayout swipeRefreshLayout;
-
-    private RequestQueue mRequestQueue;
-
+    private ContactsRecyclerAdapter recyclerAdapter;
     private RecyclerView mRecycler;
 
     public void addContact(String name, String number) {
-        Toast.makeText(this, "Name: " + name + "\n" + "Number: " + number + "\n", Toast.LENGTH_SHORT).show();
+        StringRequest addRequest = new StringRequest(Request.Method.POST, ContactsApi.ADD_CONTACT, response -> {
+            Log.d(TAG, "addContact: " + response);
+            swipeRefresh();
+        }, error -> {
+            Log.e(TAG, "addContact: " + error.getLocalizedMessage(), error);
+        }) {
+            @Override
+            protected Map<String, String> getParams() {
+                Map<String, String> params = new HashMap<>();
+                params.put("name", name);
+                params.put("number", number);
+                return params;
+            }
+        };
+        VolleySingleton.getInstance(this).addToRequestQueue(addRequest);
+    }
+
+    private void swipeRefresh() {
+        swipeRefreshLayout.setRefreshing(true);
+        getAllContacts();
     }
 
     @Override
@@ -57,9 +73,6 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
 
         findViewById(R.id.floatingActionButton).setOnClickListener(v -> showDialog());
 
-        /* Initialize the Network Request Queue */
-        mRequestQueue = Volley.newRequestQueue(this);
-
         getAllContacts();
     }
 
@@ -70,12 +83,16 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     }
 
     private void setUpRecyclerView() {
-        ContactsRecyclerAdapter recyclerAdapter = new ContactsRecyclerAdapter(contactList);
-        mRecycler.setAdapter(recyclerAdapter);
-        mRecycler.setLayoutManager(new LinearLayoutManager(this));
+        if (recyclerAdapter == null) {
+            recyclerAdapter = new ContactsRecyclerAdapter(contactList);
+            mRecycler.setAdapter(recyclerAdapter);
+            mRecycler.setLayoutManager(new LinearLayoutManager(this));
 
-        RecyclerView.ItemDecoration itemDecoration = new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
-        mRecycler.addItemDecoration(itemDecoration);
+            RecyclerView.ItemDecoration itemDecoration = new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
+            mRecycler.addItemDecoration(itemDecoration);
+        } else {
+            recyclerAdapter.swapList(contactList);
+        }
     }
 
     /**
@@ -104,7 +121,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
                 DefaultRetryPolicy.DEFAULT_BACKOFF_MULT));
 
         // Add that Request to the queue
-        mRequestQueue.add(stringRequest);
+        VolleySingleton.getInstance(this).addToRequestQueue(stringRequest);
     }
 
     private void parseJson(String response) throws JSONException {
@@ -114,14 +131,16 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         if (contacts.length() == 0) {
             Snackbar.make(findViewById(R.id.root), "Contacts List is Empty!", Snackbar.LENGTH_LONG).show();
         } else {
+            List<Contact> temp = new ArrayList<>();
             for (int i = 0; i < contacts.length(); i++) {
                 JSONObject object = contacts.getJSONObject(i);
                 String name = object.getString("name");
                 String number = object.getString("number");
 
                 Contact contact = new Contact(name, number);
-                contactList.add(contact);
+                temp.add(contact);
             }
+            contactList = new ArrayList<>(temp);
         }
         swipeRefreshLayout.setRefreshing(false);
     }
@@ -142,8 +161,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_refresh) {
-            swipeRefreshLayout.setRefreshing(true);
-            getAllContacts();
+            swipeRefresh();
             return true;
         }
 
