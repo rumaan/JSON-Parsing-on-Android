@@ -1,9 +1,10 @@
 package com.example.rumaankhalander.contactslist;
 
 import android.os.Bundle;
-import android.support.transition.TransitionManager;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.FragmentTransaction;
+import android.support.v4.widget.SwipeRefreshLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.DividerItemDecoration;
 import android.support.v7.widget.LinearLayoutManager;
@@ -12,8 +13,6 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
-import android.widget.ProgressBar;
 import android.widget.Toast;
 
 import com.android.volley.DefaultRetryPolicy;
@@ -29,16 +28,16 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements SwipeRefreshLayout.OnRefreshListener {
 
     private static final String TAG = "MainActivity";
 
     private List<Contact> contactList = new ArrayList<>();
 
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private RequestQueue mRequestQueue;
 
-    private ProgressBar mProgress;
     private RecyclerView mRecycler;
 
     public void addContact(String name, String number) {
@@ -52,8 +51,9 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        swipeRefreshLayout = findViewById(R.id.refresh_layout);
+        swipeRefreshLayout.setOnRefreshListener(this);
         mRecycler = findViewById(R.id.recycler);
-        mProgress = findViewById(R.id.progress_circular);
 
         findViewById(R.id.floatingActionButton).setOnClickListener(v -> showDialog());
 
@@ -70,18 +70,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setUpRecyclerView() {
-        /* Hide progress bar if already showing */
-        mProgress.setVisibility(View.GONE);
-        findViewById(R.id.layout).setVisibility(View.VISIBLE);
-        TransitionManager.beginDelayedTransition(findViewById(R.id.root));
-
         ContactsRecyclerAdapter recyclerAdapter = new ContactsRecyclerAdapter(contactList);
         mRecycler.setAdapter(recyclerAdapter);
         mRecycler.setLayoutManager(new LinearLayoutManager(this));
 
         RecyclerView.ItemDecoration itemDecoration = new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
         mRecycler.addItemDecoration(itemDecoration);
-
     }
 
     /**
@@ -118,7 +112,7 @@ public class MainActivity extends AppCompatActivity {
 
         JSONArray contacts = jsonObject.getJSONArray("contacts");
         if (contacts.length() == 0) {
-            Log.e(TAG, "Contacts List is empty!");
+            Snackbar.make(findViewById(R.id.root), "Contacts List is Empty!", Snackbar.LENGTH_LONG).show();
         } else {
             for (int i = 0; i < contacts.length(); i++) {
                 JSONObject object = contacts.getJSONObject(i);
@@ -129,6 +123,7 @@ public class MainActivity extends AppCompatActivity {
                 contactList.add(contact);
             }
         }
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
@@ -146,10 +141,17 @@ public class MainActivity extends AppCompatActivity {
         int id = item.getItemId();
 
         //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
+        if (id == R.id.action_refresh) {
+            swipeRefreshLayout.setRefreshing(true);
+            getAllContacts();
             return true;
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    public void onRefresh() {
+        getAllContacts();
     }
 }
