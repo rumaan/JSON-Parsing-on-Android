@@ -2,6 +2,8 @@ package com.example.rumaankhalander.contactslist;
 
 import android.os.Bundle;
 import android.support.transition.TransitionManager;
+import android.support.v4.app.DialogFragment;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.DividerItemDecoration;
 import android.support.v7.widget.LinearLayoutManager;
@@ -11,14 +13,12 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import com.android.volley.DefaultRetryPolicy;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
@@ -35,16 +35,15 @@ public class MainActivity extends AppCompatActivity {
 
     private List<Contact> contactList = new ArrayList<>();
 
-    private ContactsRecyclerAdapter recyclerAdapter;
 
     private RequestQueue mRequestQueue;
 
-    private enum STATE {LOADING, DONE, ERROR}
-
-    private STATE mCurrentState = STATE.LOADING;
-
     private ProgressBar mProgress;
     private RecyclerView mRecycler;
+
+    public void addContact(String name, String number) {
+        Toast.makeText(this, "Name: " + name + "\n" + "Number: " + number + "\n", Toast.LENGTH_SHORT).show();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,27 +55,33 @@ public class MainActivity extends AppCompatActivity {
         mRecycler = findViewById(R.id.recycler);
         mProgress = findViewById(R.id.progress_circular);
 
+        findViewById(R.id.floatingActionButton).setOnClickListener(v -> showDialog());
+
         /* Initialize the Network Request Queue */
         mRequestQueue = Volley.newRequestQueue(this);
 
         getAllContacts();
     }
 
+    private void showDialog() {
+        FragmentTransaction ft = getSupportFragmentManager().beginTransaction();
+        DialogFragment dialogFragment = AddContactFragment.newInstance();
+        dialogFragment.show(ft, "dialog");
+    }
+
     private void setUpRecyclerView() {
         /* Hide progress bar if already showing */
         mProgress.setVisibility(View.GONE);
         findViewById(R.id.layout).setVisibility(View.VISIBLE);
+        TransitionManager.beginDelayedTransition(findViewById(R.id.root));
 
-        TransitionManager.beginDelayedTransition((ViewGroup) findViewById(R.id.root));
-
-        // give this to the adapter
-        recyclerAdapter = new ContactsRecyclerAdapter(contactList);
-
+        ContactsRecyclerAdapter recyclerAdapter = new ContactsRecyclerAdapter(contactList);
         mRecycler.setAdapter(recyclerAdapter);
         mRecycler.setLayoutManager(new LinearLayoutManager(this));
 
         RecyclerView.ItemDecoration itemDecoration = new DividerItemDecoration(this, DividerItemDecoration.VERTICAL);
         mRecycler.addItemDecoration(itemDecoration);
+
     }
 
     /**
@@ -85,32 +90,19 @@ public class MainActivity extends AppCompatActivity {
     private void getAllContacts() {
         // Create the request
         StringRequest stringRequest =
-                new StringRequest(Request.Method.GET, ContactsApi.ALL_CONTACTS, new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        // handling response here
-                        try {
-                            // parse the JSON response
-                            parseJson(response);
+                new StringRequest(Request.Method.GET, ContactsApi.ALL_CONTACTS, response -> {
+                    // handling response here
+                    try {
+                        // parse the JSON response
+                        parseJson(response);
 
-                            mCurrentState = STATE.DONE;
+                        setUpRecyclerView();
 
-                            setUpRecyclerView();
-
-                            // refresh the adapter
-                            recyclerAdapter.swapList(contactList);
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
+                    } catch (JSONException e) {
+                        e.printStackTrace();
                     }
-
-                }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        // TODO: show error state
-                        mCurrentState = STATE.ERROR;
-                        Log.e(TAG, error.getLocalizedMessage(), error);
-                    }
+                }, error -> {
+                    Log.e(TAG, error.getLocalizedMessage(), error);
                 });
 
         /* Add retry policy if network error */
@@ -125,14 +117,17 @@ public class MainActivity extends AppCompatActivity {
         JSONObject jsonObject = new JSONObject(response);
 
         JSONArray contacts = jsonObject.getJSONArray("contacts");
-        for (int i = 0; i < contacts.length(); i++) {
-            JSONObject object = contacts.getJSONObject(i);
-            String name = object.getString("name");
-            String number = object.getString("number");
+        if (contacts.length() == 0) {
+            Log.e(TAG, "Contacts List is empty!");
+        } else {
+            for (int i = 0; i < contacts.length(); i++) {
+                JSONObject object = contacts.getJSONObject(i);
+                String name = object.getString("name");
+                String number = object.getString("number");
 
-            Contact contact = new Contact(name, number);
-
-            contactList.add(contact);
+                Contact contact = new Contact(name, number);
+                contactList.add(contact);
+            }
         }
     }
 
