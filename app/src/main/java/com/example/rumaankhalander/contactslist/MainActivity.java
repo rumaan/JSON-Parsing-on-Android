@@ -38,9 +38,14 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
     private RecyclerView mRecycler;
 
     public void addContact(String name, String number) {
+        /* Update locally first */
+        contactList.add(new Contact(name, number));
+        setUpRecyclerView();
+
+        swipeRefreshLayout.setRefreshing(true);
         StringRequest addRequest = new StringRequest(Request.Method.POST, ContactsApi.ADD_CONTACT, response -> {
             Log.d(TAG, "addContact: " + response);
-            swipeRefresh();
+            getAllContacts();
         }, error -> {
             Log.e(TAG, "addContact: " + error.getLocalizedMessage(), error);
         }) {
@@ -53,11 +58,6 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
             }
         };
         VolleySingleton.getInstance(this).addToRequestQueue(addRequest);
-    }
-
-    private void swipeRefresh() {
-        swipeRefreshLayout.setRefreshing(true);
-        getAllContacts();
     }
 
     @Override
@@ -130,6 +130,7 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
         JSONArray contacts = jsonObject.getJSONArray("contacts");
         if (contacts.length() == 0) {
             Snackbar.make(findViewById(R.id.root), "Contacts List is Empty!", Snackbar.LENGTH_LONG).show();
+            contactList = new ArrayList<>();
         } else {
             List<Contact> temp = new ArrayList<>();
             for (int i = 0; i < contacts.length(); i++) {
@@ -161,11 +162,27 @@ public class MainActivity extends AppCompatActivity implements SwipeRefreshLayou
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_refresh) {
-            swipeRefresh();
+            swipeRefreshLayout.setRefreshing(true);
+            getAllContacts();
             return true;
+        }
+        if (id == R.id.action_clear_all) {
+            /* TODO: upload local first and notify */
+            contactList = new ArrayList<>();
+            clearAll();
+            setUpRecyclerView();
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void clearAll() {
+        StringRequest clearRequest = new StringRequest(Request.Method.GET, ContactsApi.CLEAR_CONTACTS, response -> {
+            swipeRefreshLayout.setRefreshing(true);
+            getAllContacts();
+        }, error -> Log.e(TAG, "clearAll: " + error.getLocalizedMessage(), error));
+
+        VolleySingleton.getInstance(this).addToRequestQueue(clearRequest);
     }
 
     @Override

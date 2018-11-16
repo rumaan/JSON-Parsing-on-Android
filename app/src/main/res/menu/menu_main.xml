@@ -8,4 +8,9 @@
         android:orderInCategory="100"
         android:title="@string/action_refresh"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_clear_all"
+        android:orderInCategory="200"
+        android:title="Clear All"
+        app:showAsAction="never" />
 </menu>
